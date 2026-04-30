@@ -1,0 +1,18 @@
+name: Deploy contabil-usuario
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/deploy-reusable.yml
+    with:
+      service-name: contabil-usuario
+      deployment-name: contabil-usuario-deployment
+      port: "10091"
+    secrets:
+      GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+      TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
