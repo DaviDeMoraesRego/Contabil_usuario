@@ -12,7 +12,7 @@
 	</parent>
 
 	<groupId>br.com.contabil.usuario</groupId>
-	<artifactId>contabil-game</artifactId>
+	<artifactId>contabil-usuario</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>contabil-usuario-v1</name>
 	<description>Tabela de usuários do jogo Contábil.</description>
@@ -50,6 +50,11 @@
 			<artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
 		</dependency>
 
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+
 		<!-- Banco de dados MySQL -->
 		<dependency>
 			<groupId>com.mysql</groupId>
@@ -79,8 +84,8 @@
 		<!-- Documentação Swagger/OpenAPI -->
 		<dependency>
 			<groupId>org.springdoc</groupId>
-			<artifactId>springdoc-openapi-ui</artifactId>
-			<version>1.6.4</version>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>2.8.6</version>
 		</dependency>
 
 		<!-- JAXB -->
@@ -111,19 +116,28 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
-		<dependency>
-			<groupId>com.h2database</groupId>
-			<artifactId>h2</artifactId>
-			<scope>test</scope>
-		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+
+		<!-- H2 -->
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
+		<resources>
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>false</filtering>
+			</resource>
+		</resources>
 		<plugins>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -143,6 +157,10 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<mainClass>
+						br.com.contabil.usuario.ContabilUsuarioV1Application</mainClass>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>

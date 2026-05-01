@@ -1,10 +1,10 @@
 package br.com.contabil.usuario.exception;
 
-public class internalServerError extends Exception {
+public class InternalServerError extends Exception {
 
 	private static final long serialVersionUID = 1L;
 
-	public internalServerError(String message) {
+	public InternalServerError(String message) {
 		super(message);
 	}
 }

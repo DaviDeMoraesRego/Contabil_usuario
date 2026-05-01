@@ -1,168 +1,110 @@
 package br.com.contabil.usuario.config;
 
-import java.io.IOException;
-import java.security.Key;
-import java.util.Date;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtException;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
-import org.springframework.stereotype.Component;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.security.web.header.writers.StaticHeadersWriter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.filter.OncePerRequestFilter;
 
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.MalformedJwtException;
-import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.security.Keys;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    @Value("${jwt.secret:/QBDvFQOuZjSA8m1kIHDu4GbR2CbPtN8/elLKcALINI=}")
-    private String secretKey;
+	private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
-    private static final String[] AUTH_WHITELIST = {
-        "/swagger-ui/**",
-        "/swagger-resources/**",
-        "/v3/api-docs/**",
-        "/webjars/**",
-        "/auth/**",
-    };
+	@Value("${app.cors.allowed-origins}")
+	private List<String> allowedOrigins;
 
-    private Key getSigningKey() {
-        return Keys.hmacShaKeyFor(secretKey.getBytes());
-    }
+	@Value("${app.swagger.enabled:false}")
+	private boolean swaggerEnabled;
 
-    public String generateToken(Authentication authentication) {
-        return Jwts.builder()
-                .setSubject(authentication.getName())
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + 86400000)) // 1 dia
-                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
-                .compact();
-    }
+	@Value("${app.cors.allowed-origins}")
+	private String expectedClientId;
 
-    public String getUsernameFromToken(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(getSigningKey())
-                .build()
-                .parseClaimsJws(token)
-                .getBody()
-                .getSubject();
-    }
+	private static final String[] SWAGGER_WHITELIST = { "/swagger-ui/**", "/swagger-resources/**", "/v3/api-docs/**",
+			"/webjars/**" };
 
-    public boolean isTokenValid(String token) {
-        try {
-            Jwts.parserBuilder().setSigningKey(getSigningKey()).build().parseClaimsJws(token);
-            return true;
-        } catch (ExpiredJwtException | MalformedJwtException | IllegalArgumentException e) {
-            return false;
-        }
-    }
+	private static final String[] ACTUATOR_WHITELIST = { "/actuator/health/liveness", "/actuator/health/readiness" };
 
-    @Bean
-    BCryptPasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder(12);
-    }
+	@Bean
+	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+		http.csrf(csrf -> csrf.disable())
+				.sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+				.cors(Customizer.withDefaults())
+				.headers(headers -> headers
+						.httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000))
+						.frameOptions(frame -> frame.deny()).contentTypeOptions(Customizer.withDefaults())
+						.referrerPolicy(referrer -> referrer
+								.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+						.addHeaderWriter(new StaticHeadersWriter("Permissions-Policy",
+								"camera=(), microphone=(), geolocation=()"))
+						.contentSecurityPolicy(
+								csp -> csp.policyDirectives("default-src 'none'; frame-ancestors 'none'")))
+				.exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, e) -> {
+					log.warn("Acesso nao autenticado: {} {} | IP: {}", request.getMethod(), request.getRequestURI(),
+							request.getRemoteAddr());
+					response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+				}).accessDeniedHandler((request, response, e) -> {
+					log.warn("Acesso negado: {} {} | IP: {}", request.getMethod(), request.getRequestURI(),
+							request.getRemoteAddr());
+					response.sendError(HttpServletResponse.SC_FORBIDDEN);
+				})).authorizeHttpRequests(auth -> {
+					auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
+					auth.requestMatchers(ACTUATOR_WHITELIST).permitAll();
+					if (swaggerEnabled) {
+						auth.requestMatchers(SWAGGER_WHITELIST).permitAll();
+					}
+					auth.anyRequest().authenticated();
+				}).oauth2ResourceServer(
+						oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
 
-    @Bean
-    UserDetailsService userDetailsService(BCryptPasswordEncoder encoder) {
-        InMemoryUserDetailsManager manager = new InMemoryUserDetailsManager();
-        manager.createUser(User.withUsername("Davizeira69")
-                .password(encoder.encode("Fabiola01#"))
-                .roles("ADMIN", "USER").build());
-        return manager;
-    }
+		return http.build();
+	}
 
-    @Bean
-    SecurityFilterChain securityFilterChain(
-            HttpSecurity http,
-            JwtAuthFilter jwtAuthFilter) throws Exception {
-        return http
-                .csrf(csrf -> csrf.disable())
-                .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(AUTH_WHITELIST).permitAll()
-                        .anyRequest().authenticated())
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-                .build();
-    }
-    
-    //temporário
-    @Bean
-    CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("https://contabiledu.com.br"));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
-        config.setAllowCredentials(true);
-        config.setExposedHeaders(List.of("Authorization"));
+	@Bean
+	JwtAuthenticationConverter jwtAuthenticationConverter() {
+		JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
+		converter.setJwtGrantedAuthoritiesConverter((Jwt jwt) -> {
+			String azp = jwt.getClaimAsString("azp");
+			if (azp == null || !azp.equals(expectedClientId)) {
+				log.warn("Token rejeitado: azp invalido '{}'", azp);
+				throw new JwtException("Token nao autorizado para esta aplicacao");
+			}
+			return List.of();
+		});
+		return converter;
+	}
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config);
-        return source;
-    }
+	@Bean
+	CorsConfigurationSource corsConfigurationSource() {
+		CorsConfiguration config = new CorsConfiguration();
+		config.setAllowedOrigins(allowedOrigins);
+		config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+		config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept"));
+		config.setExposedHeaders(List.of("Authorization"));
+		config.setAllowCredentials(true);
+		config.setMaxAge(3600L);
 
-
-    @Bean
-    AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
-    }
-}
-
-@Component
-class JwtAuthFilter extends OncePerRequestFilter {
-
-    private final UserDetailsService userDetailsService;
-    private final SecurityConfig securityConfig;
-
-    public JwtAuthFilter(UserDetailsService userDetailsService, SecurityConfig securityConfig) {
-        this.userDetailsService = userDetailsService;
-        this.securityConfig = securityConfig;
-    }
-
-    @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-            throws ServletException, IOException {
-        String header = request.getHeader("Authorization");
-        if (header != null && header.startsWith("Bearer ")) {
-            String token = header.substring(7);
-            if (securityConfig.isTokenValid(token)) {
-                String username = securityConfig.getUsernameFromToken(token);
-                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-                UsernamePasswordAuthenticationToken authToken =
-                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
-            }
-        }
-        chain.doFilter(request, response);
-    }
+		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+		source.registerCorsConfiguration("/**", config);
+		return source;
+	}
 }

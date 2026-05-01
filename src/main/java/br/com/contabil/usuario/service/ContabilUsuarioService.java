@@ -5,14 +5,15 @@ import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import br.com.contabil.usuario.adapter.ContabilUsuarioAdapter;
 import br.com.contabil.usuario.dto.ContabilUsuarioDto;
 import br.com.contabil.usuario.entity.ContabilUsuarioEntity;
 import br.com.contabil.usuario.exception.BadRequestException;
-import br.com.contabil.usuario.exception.NotFoundExceptionException;
-import br.com.contabil.usuario.exception.internalServerError;
+import br.com.contabil.usuario.exception.NotFoundException;
+import br.com.contabil.usuario.exception.InternalServerError;
 import br.com.contabil.usuario.repository.ContabilUsuarioRepository;
 
 @Service
@@ -33,7 +34,7 @@ public class ContabilUsuarioService {
 		} catch (IllegalArgumentException | OptimisticLockingFailureException e) {
 			throw new BadRequestException(e.getMessage());
 		} catch (Exception e) {
-			throw new internalServerError(e.getMessage());
+			throw new InternalServerError(e.getMessage());
 		}
 		return clerkId;
 	}
@@ -44,10 +45,10 @@ public class ContabilUsuarioService {
 			List<ContabilUsuarioEntity> entities = repository.findAll();
 			notFoundChecker(entities.size());
 			entities.forEach(entity -> dtos.add(adapter.adapterEntityToDto(entity)));
-		} catch (NotFoundExceptionException e) {
-			throw new NotFoundExceptionException(e.getMessage());
+		} catch (NotFoundException e) {
+			throw new NotFoundException(e.getMessage());
 		} catch (Exception e) {
-			throw new internalServerError(e.getMessage());
+			throw new InternalServerError(e.getMessage());
 		}
 		return dtos;
 	}
@@ -56,12 +57,12 @@ public class ContabilUsuarioService {
 		ContabilUsuarioDto dto;
 		try {
 			ContabilUsuarioEntity entity = repository.findByClerkId(clerkId)
-					.orElseThrow(() -> new NotFoundExceptionException("Nenhum registro encontrado."));
+					.orElseThrow(() -> new NotFoundException("Nenhum registro encontrado."));
 			dto = adapter.adapterEntityToDto(entity);
-		} catch (NotFoundExceptionException e) {
-			throw new NotFoundExceptionException(e.getMessage());
+		} catch (NotFoundException e) {
+			throw new NotFoundException(e.getMessage());
 		} catch (Exception e) {
-			throw new internalServerError(e.getMessage());
+			throw new InternalServerError(e.getMessage());
 		}
 		return dto;
 	}
@@ -71,19 +72,47 @@ public class ContabilUsuarioService {
 		try {
 			updated = repository.updatePointsAndHearts(clerkId, hearts, points);
 			if (updated == 0) {
-				throw new NotFoundExceptionException("Usuário não encontrado para o clerkId: " + clerkId);
+				throw new NotFoundException("Usuário não encontrado para o clerkId: " + clerkId);
 			}
-		} catch (NotFoundExceptionException e) {
-			throw new NotFoundExceptionException(e.getMessage());
+		} catch (NotFoundException e) {
+			throw new NotFoundException(e.getMessage());
 		} catch (Exception e) {
-			throw new internalServerError(e.getMessage());
+			throw new InternalServerError(e.getMessage());
 		}
 		return updated;
 	}
 
-	private static void notFoundChecker(int paramForCheck) throws NotFoundExceptionException {
+	public List<ContabilUsuarioDto> findTop200ByOrderByPointsDesc(Pageable pageable) throws Exception {
+		List<ContabilUsuarioDto> dtos = new ArrayList<>();
+		try {
+			List<ContabilUsuarioEntity> entities = repository.findTop200ByOrderByPointsDesc(pageable);
+			notFoundChecker(entities.size());
+			entities.forEach(entity -> dtos.add(adapter.adapterEntityToDto(entity)));
+		} catch (NotFoundException e) {
+			throw new NotFoundException(e.getMessage());
+		} catch (Exception e) {
+			throw new InternalServerError(e.getMessage());
+		}
+		return dtos;
+	}
+
+	public int findUserRank(String clerkId) throws Exception {
+		int rank = 0;
+		try {
+			rank = repository.findUserRank(clerkId)
+					.orElseThrow(() -> new NotFoundException("Ranking do usuario não encontrado."));
+
+		} catch (NotFoundException e) {
+			throw new NotFoundException(e.getMessage());
+		} catch (Exception e) {
+			throw new InternalServerError(e.getMessage());
+		}
+		return rank;
+	}
+
+	private static void notFoundChecker(int paramForCheck) throws NotFoundException {
 		if (paramForCheck == 0) {
-			throw new NotFoundExceptionException("Nenhum registro encontrado.");
+			throw new NotFoundException("Nenhum registro encontrado.");
 		}
 	}
 }

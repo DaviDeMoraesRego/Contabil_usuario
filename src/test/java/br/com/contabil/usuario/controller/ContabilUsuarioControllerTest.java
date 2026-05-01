@@ -1,206 +1,379 @@
 package br.com.contabil.usuario.controller;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
 
-import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.HttpHeaders;
-import org.springframework.test.context.ContextConfiguration;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import br.com.contabil.usuario.dto.ContabilUsuarioDto;
 import br.com.contabil.usuario.exception.BadRequestException;
-import br.com.contabil.usuario.exception.NotFoundExceptionException;
-import br.com.contabil.usuario.exception.internalServerError;
+import br.com.contabil.usuario.exception.InternalServerError;
+import br.com.contabil.usuario.exception.NotFoundException;
 import br.com.contabil.usuario.service.ContabilUsuarioService;
 
-@WebMvcTest(ContabilUsuarioController.class)
-@AutoConfigureMockMvc(addFilters = false)
-
-@ContextConfiguration(classes = { ContabilUsuarioController.class, RestExceptionHandler.class })
-public class ContabilUsuarioControllerTest {
+@WebMvcTest(controllers = { ContabilUsuarioController.class, RestExceptionHandler.class })
+@DisplayName("ContabilUsuarioController - Testes de Integração")
+class ContabilUsuarioControllerTest {
 
 	@Autowired
 	private MockMvc mockMvc;
 
-	@MockBean
+	@Autowired
+	private ObjectMapper objectMapper;
+
+	@MockitoBean
 	private ContabilUsuarioService service;
 
-	private static final HttpHeaders HEADERS = new HttpHeaders();
+	private ContabilUsuarioDto dto;
 
-	@BeforeAll
-	public static void setup() {
-		HEADERS.add("Content-Type", "application/json;charset=UTF-8");
-		HEADERS.add("Accept", "application/json;charset=UTF-8");
+	private static final String BASE_URL = "/contabil-usuario/v1";
+
+	@BeforeEach
+	void setUp() {
+		dto = new ContabilUsuarioDto("clerk_001", "João", "joao@email.com", "http://img.png", 1, 5, 100);
 	}
 
-	// ---------------------------------------------------------
-	// POST /contabil-usuario/v1/
-	// ---------------------------------------------------------
-	@Test
-	@DisplayName("POST - Deve retornar 201 CREATED ao criar usuário")
-	void shouldReturnCreated_whenCreateUser() throws Exception {
-		Mockito.when(service.createOrUpdate(Mockito.any())).thenReturn("abc123");
+	// ─────────────────────────────────────────────────────────────────────────
+	// POST /contabil-usuario/v1
+	// ─────────────────────────────────────────────────────────────────────────
 
-		MvcResult response = mockMvc
-				.perform(MockMvcRequestBuilders.post("/contabil-usuario/v1/").headers(HEADERS).content("""
-						    {
-						        "clerkId": "abc123",
-						        "nome": "Davi",
-						        "email": "davi@example.com",
-						        "userImgSrc": "img",
-						        "activeCourse": 0,
-						        "hearts": 5,
-						        "points": 10
-						    }
-						""")).andExpect(status().isCreated()).andReturn();
+	@Nested
+	@DisplayName("POST /contabil-usuario/v1")
+	class Create {
 
-		String responseBody = response.getResponse().getContentAsString();
-		assertNotNull(responseBody);
-		assertEquals("{\"data\":\"abc123\",\"errors\":null}", responseBody);
+		@Test
+        @WithMockUser
+        @DisplayName("Deve retornar 201 e clerkId ao criar usuário com sucesso")
+        void deveRetornar201_quandoCriarComSucesso() throws Exception {
+            when(service.createOrUpdate(any())).thenReturn("clerk_001");
+
+            mockMvc.perform(post(BASE_URL)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(dto)))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.data").value("clerk_001"))
+                    .andExpect(jsonPath("$.errors").doesNotExist());
+        }
+
+		@Test
+		@WithMockUser
+		@DisplayName("Deve retornar 400 quando clerkId está em branco")
+		void deveRetornar400_quandoClerkIdEmBranco() throws Exception {
+			dto.setClerkId("");
+
+			mockMvc.perform(post(BASE_URL).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+					.content(objectMapper.writeValueAsString(dto))).andExpect(status().isBadRequest());
+		}
+
+		@Test
+		@WithMockUser
+		@DisplayName("Deve retornar 400 quando email está em branco")
+		void deveRetornar400_quandoEmailEmBranco() throws Exception {
+			dto.setEmail("");
+
+			mockMvc.perform(post(BASE_URL).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+					.content(objectMapper.writeValueAsString(dto))).andExpect(status().isBadRequest());
+		}
+
+		@Test
+		@WithMockUser
+		@DisplayName("Deve retornar 400 quando hearts é negativo")
+		void deveRetornar400_quandoHeartsNegativo() throws Exception {
+			dto.setHearts(-1);
+
+			mockMvc.perform(post(BASE_URL).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+					.content(objectMapper.writeValueAsString(dto))).andExpect(status().isBadRequest());
+		}
+
+		@Test
+		@WithMockUser
+		@DisplayName("Deve retornar 400 quando points é negativo")
+		void deveRetornar400_quandoPointsNegativo() throws Exception {
+			dto.setPoints(-1);
+
+			mockMvc.perform(post(BASE_URL).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+					.content(objectMapper.writeValueAsString(dto))).andExpect(status().isBadRequest());
+		}
+
+		@Test
+        @WithMockUser
+        @DisplayName("Deve retornar 400 quando service lança BadRequestException")
+        void deveRetornar400_quandoServiceLancaBadRequest() throws Exception {
+            when(service.createOrUpdate(any())).thenThrow(new BadRequestException("argumento inválido"));
+
+            mockMvc.perform(post(BASE_URL)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(dto)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors").value("argumento inválido"));
+        }
+
+		@Test
+        @WithMockUser
+        @DisplayName("Deve retornar 500 quando service lança InternalServerError")
+        void deveRetornar500_quandoServiceLancaInternalServerError() throws Exception {
+            when(service.createOrUpdate(any())).thenThrow(new InternalServerError("erro interno"));
+
+            mockMvc.perform(post(BASE_URL)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(dto)))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.errors").value("erro interno"));
+        }
 	}
 
-	@Test
-	@DisplayName("POST - Deve retornar 400 BAD REQUEST")
-	void shouldReturnBadRequest_whenServiceThrowsBadRequest() throws Exception {
-		Mockito.when(service.createOrUpdate(Mockito.any())).thenThrow(new BadRequestException("Erro no DTO"));
+	// ─────────────────────────────────────────────────────────────────────────
+	// GET /contabil-usuario/v1
+	// ─────────────────────────────────────────────────────────────────────────
 
-		MvcResult response = mockMvc
-				.perform(MockMvcRequestBuilders.post("/contabil-usuario/v1/").headers(HEADERS)
-						.content("{\"clerkId\":\"abc\",\"email\":\"davi@example.com\"}"))
-				.andExpect(status().isBadRequest()).andReturn();
+	@Nested
+	@DisplayName("GET /contabil-usuario/v1")
+	class FindAll {
 
-		String responseBody = response.getResponse().getContentAsString();
-		assertEquals("{\"data\":null,\"errors\":\"Erro no DTO\"}", responseBody);
+		@Test
+        @WithMockUser
+        @DisplayName("Deve retornar 200 e lista de usuários com sucesso")
+        void deveRetornar200_quandoHouverUsuarios() throws Exception {
+            when(service.findAll()).thenReturn(List.of(dto));
+
+            mockMvc.perform(get(BASE_URL))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data").isArray())
+                    .andExpect(jsonPath("$.data[0].clerkId").value("clerk_001"))
+                    .andExpect(jsonPath("$.data[0].email").value("joao@email.com"))
+                    .andExpect(jsonPath("$.errors").doesNotExist());
+        }
+
+		@Test
+        @WithMockUser
+        @DisplayName("Deve retornar 404 quando não há usuários")
+        void deveRetornar404_quandoSemUsuarios() throws Exception {
+            when(service.findAll()).thenThrow(new NotFoundException("Nenhum registro encontrado."));
+
+            mockMvc.perform(get(BASE_URL))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.errors").value("Nenhum registro encontrado."));
+        }
+
+		@Test
+        @WithMockUser
+        @DisplayName("Deve retornar 500 quando service lança InternalServerError")
+        void deveRetornar500_quandoErroInterno() throws Exception {
+            when(service.findAll()).thenThrow(new InternalServerError("erro interno"));
+
+            mockMvc.perform(get(BASE_URL))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.errors").value("erro interno"));
+        }
 	}
 
-	@Test
-	@DisplayName("POST - Deve retornar 500 INTERNAL SERVER errors")
-	void shouldReturnInternalServererrors_whenServiceThrowsInternal() throws Exception {
-		Mockito.when(service.createOrUpdate(Mockito.any())).thenThrow(new internalServerError("Erro interno"));
-
-		MvcResult response = mockMvc
-				.perform(MockMvcRequestBuilders.post("/contabil-usuario/v1/").headers(HEADERS)
-						.content("{\"clerkId\":\"abc\",\"email\":\"davi@example.com\"}"))
-				.andExpect(status().isInternalServerError()).andReturn();
-
-		String responseBody = response.getResponse().getContentAsString();
-		assertEquals("{\"data\":null,\"errors\":\"Erro interno\"}", responseBody);
-	}
-
-	// ---------------------------------------------------------
-	// GET /contabil-usuario/v1/
-	// ---------------------------------------------------------
-	@Test
-	@DisplayName("GET All - Deve retornar 200 OK")
-	void shouldReturnOk_whenFindAll() throws Exception {
-		Mockito.when(service.findAll())
-				.thenReturn(List.of(new ContabilUsuarioDto("abc", "Davi", "davi@example.com", null, 0, 5, 10)));
-
-		MvcResult response = mockMvc.perform(MockMvcRequestBuilders.get("/contabil-usuario/v1/").headers(HEADERS))
-				.andExpect(status().isOk()).andReturn();
-
-		String responseBody = response.getResponse().getContentAsString();
-		assertEquals(
-				"{\"data\":[{\"clerkId\":\"abc\",\"nome\":\"Davi\",\"email\":\"davi@example.com\",\"userImgSrc\":null,\"activeCourse\":0,\"hearts\":5,\"points\":10}],\"errors\":null}",
-				responseBody);
-	}
-
-	@Test
-	@DisplayName("GET All - Deve retornar 404 NOT FOUND")
-	void shouldReturnNotFound_whenFindAllThrows() throws Exception {
-		Mockito.when(service.findAll()).thenThrow(new NotFoundExceptionException("Nenhum registro encontrado."));
-
-		MvcResult response = mockMvc.perform(MockMvcRequestBuilders.get("/contabil-usuario/v1/").headers(HEADERS))
-				.andExpect(status().isNotFound()).andReturn();
-
-		String responseBody = response.getResponse().getContentAsString();
-		assertEquals("{\"data\":null,\"errors\":\"Nenhum registro encontrado.\"}", responseBody);
-	}
-
-	// ---------------------------------------------------------
+	// ─────────────────────────────────────────────────────────────────────────
 	// GET /contabil-usuario/v1/{clerkId}/
-	// ---------------------------------------------------------
-	@Test
-	@DisplayName("GET ByClerkId - Deve retornar 200 OK")
-	void shouldReturnOk_whenFindByClerkId() throws Exception {
-		Mockito.when(service.findByClerkId("abc"))
-				.thenReturn(new ContabilUsuarioDto("abc", "Davi", "davi@example.com", null, 0, 5, 10));
+	// ─────────────────────────────────────────────────────────────────────────
 
-		MvcResult response = mockMvc.perform(MockMvcRequestBuilders.get("/contabil-usuario/v1/abc/").headers(HEADERS))
-				.andExpect(status().isOk()).andReturn();
+	@Nested
+	@DisplayName("GET /contabil-usuario/v1/{clerkId}/")
+	class FindByClerkId {
 
-		String responseBody = response.getResponse().getContentAsString();
-		assertEquals(
-				"{\"data\":{\"clerkId\":\"abc\",\"nome\":\"Davi\",\"email\":\"davi@example.com\",\"userImgSrc\":null,\"activeCourse\":0,\"hearts\":5,\"points\":10},\"errors\":null}",
-				responseBody);
+		@Test
+        @WithMockUser
+        @DisplayName("Deve retornar 200 e usuário encontrado")
+        void deveRetornar200_quandoEncontrado() throws Exception {
+            when(service.findByClerkId("clerk_001")).thenReturn(dto);
+
+            mockMvc.perform(get(BASE_URL + "/clerk_001/"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.clerkId").value("clerk_001"))
+                    .andExpect(jsonPath("$.data.nome").value("João"))
+                    .andExpect(jsonPath("$.errors").doesNotExist());
+        }
+
+		@Test
+        @WithMockUser
+        @DisplayName("Deve retornar 404 quando usuário não encontrado")
+        void deveRetornar404_quandoNaoEncontrado() throws Exception {
+            when(service.findByClerkId("clerk_999"))
+                    .thenThrow(new NotFoundException("Nenhum registro encontrado."));
+
+            mockMvc.perform(get(BASE_URL + "/clerk_999/"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.errors").value("Nenhum registro encontrado."));
+        }
+
+		@Test
+        @WithMockUser
+        @DisplayName("Deve retornar 500 quando service lança InternalServerError")
+        void deveRetornar500_quandoErroInterno() throws Exception {
+            when(service.findByClerkId(any())).thenThrow(new InternalServerError("erro interno"));
+
+            mockMvc.perform(get(BASE_URL + "/clerk_001/"))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.errors").value("erro interno"));
+        }
 	}
 
-	@Test
-	@DisplayName("GET ByClerkId - Deve retornar 404 NOT FOUND")
-	void shouldReturnNotFound_whenFindByClerkIdThrows() throws Exception {
-		Mockito.when(service.findByClerkId("abc"))
-				.thenThrow(new NotFoundExceptionException("Nenhum registro encontrado."));
-
-		MvcResult response = mockMvc.perform(MockMvcRequestBuilders.get("/contabil-usuario/v1/abc/").headers(HEADERS))
-				.andExpect(status().isNotFound()).andReturn();
-
-		String responseBody = response.getResponse().getContentAsString();
-		assertEquals("{\"data\":null,\"errors\":\"Nenhum registro encontrado.\"}", responseBody);
-	}
-
-	// ---------------------------------------------------------
+	// ─────────────────────────────────────────────────────────────────────────
 	// PUT /contabil-usuario/v1/{clerkId}/{hearts}/{points}
-	// ---------------------------------------------------------
-	@Test
-	@DisplayName("PUT - Deve retornar 200 OK")
-	void shouldReturnOk_whenUpdate() throws Exception {
-		Mockito.when(service.updatePointsAndHearts("abc", 5, 10)).thenReturn(1);
+	// ─────────────────────────────────────────────────────────────────────────
 
-		MvcResult response = mockMvc
-				.perform(MockMvcRequestBuilders.put("/contabil-usuario/v1/abc/5/10").headers(HEADERS))
-				.andExpect(status().isOk()).andReturn();
+	@Nested
+	@DisplayName("PUT /contabil-usuario/v1/{clerkId}/{hearts}/{points}")
+	class Update {
 
-		String responseBody = response.getResponse().getContentAsString();
-		assertEquals("{\"data\":1,\"errors\":null}", responseBody);
+		@Test
+        @WithMockUser
+        @DisplayName("Deve retornar 200 quando atualização bem-sucedida")
+        void deveRetornar200_quandoAtualizacaoBemSucedida() throws Exception {
+            when(service.updatePointsAndHearts("clerk_001", 3, 200)).thenReturn(1);
+
+            mockMvc.perform(put(BASE_URL + "/clerk_001/3/200").with(csrf()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data").value(1))
+                    .andExpect(jsonPath("$.errors").doesNotExist());
+        }
+
+		@Test
+        @WithMockUser
+        @DisplayName("Deve retornar 404 quando usuário não encontrado")
+        void deveRetornar404_quandoNaoEncontrado() throws Exception {
+            when(service.updatePointsAndHearts("clerk_999", 3, 200))
+                    .thenThrow(new NotFoundException("Usuário não encontrado para o clerkId: clerk_999"));
+
+            mockMvc.perform(put(BASE_URL + "/clerk_999/3/200").with(csrf()))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.errors").value("Usuário não encontrado para o clerkId: clerk_999"));
+        }
+
+		@Test
+        @WithMockUser
+        @DisplayName("Deve retornar 500 quando service lança InternalServerError")
+        void deveRetornar500_quandoErroInterno() throws Exception {
+            when(service.updatePointsAndHearts(any(), anyInt(), anyInt()))
+                    .thenThrow(new InternalServerError("erro interno"));
+
+            mockMvc.perform(put(BASE_URL + "/clerk_001/3/200").with(csrf()))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.errors").value("erro interno"));
+        }
 	}
 
-	@Test
-	@DisplayName("PUT - Deve retornar 404 NOT FOUND")
-	void shouldReturnNotFound_whenUpdateThrows() throws Exception {
-		Mockito.when(service.updatePointsAndHearts("abc", 5, 10))
-				.thenThrow(new NotFoundExceptionException("Usuário não encontrado"));
+	// ─────────────────────────────────────────────────────────────────────────
+	// GET /contabil-usuario/v1/ranking/
+	// ─────────────────────────────────────────────────────────────────────────
 
-		MvcResult response = mockMvc
-				.perform(MockMvcRequestBuilders.put("/contabil-usuario/v1/abc/5/10").headers(HEADERS))
-				.andExpect(status().isNotFound()).andReturn();
+	@Nested
+	@DisplayName("GET /contabil-usuario/v1/ranking/")
+	class FindRanking {
 
-		String responseBody = response.getResponse().getContentAsString();
-		assertEquals("{\"data\":null,\"errors\":\"Usuário não encontrado\"}", responseBody);
+		@Test
+        @WithMockUser
+        @DisplayName("Deve retornar 200 e lista de ranking com sucesso")
+        void deveRetornar200_quandoHouverRanking() throws Exception {
+            when(service.findTop200ByOrderByPointsDesc(any(Pageable.class))).thenReturn(List.of(dto));
+
+            mockMvc.perform(get(BASE_URL + "/ranking/")
+                            .param("page", "0")
+                            .param("size", "10"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data").isArray())
+                    .andExpect(jsonPath("$.data[0].clerkId").value("clerk_001"))
+                    .andExpect(jsonPath("$.errors").doesNotExist());
+        }
+
+		@Test
+        @WithMockUser
+        @DisplayName("Deve retornar 404 quando ranking vazio")
+        void deveRetornar404_quandoRankingVazio() throws Exception {
+            when(service.findTop200ByOrderByPointsDesc(any(Pageable.class)))
+                    .thenThrow(new NotFoundException("Nenhum registro encontrado."));
+
+            mockMvc.perform(get(BASE_URL + "/ranking/")
+                            .param("page", "0")
+                            .param("size", "10"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.errors").value("Nenhum registro encontrado."));
+        }
+
+		@Test
+        @WithMockUser
+        @DisplayName("Deve retornar 500 quando service lança InternalServerError")
+        void deveRetornar500_quandoErroInterno() throws Exception {
+            when(service.findTop200ByOrderByPointsDesc(any(Pageable.class)))
+                    .thenThrow(new InternalServerError("erro interno"));
+
+            mockMvc.perform(get(BASE_URL + "/ranking/")
+                            .param("page", "0")
+                            .param("size", "10"))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.errors").value("erro interno"));
+        }
 	}
 
-	@Test
-	@DisplayName("PUT - Deve retornar 500 INTERNAL SERVER errors")
-	void shouldReturnInternalerrors_whenUpdateThrowsInternal() throws Exception {
-		Mockito.when(service.updatePointsAndHearts("abc", 5, 10)).thenThrow(new internalServerError("Erro interno"));
+	// ─────────────────────────────────────────────────────────────────────────
+	// GET /contabil-usuario/v1/rank/{clerkId}/
+	// ─────────────────────────────────────────────────────────────────────────
 
-		MvcResult response = mockMvc
-				.perform(MockMvcRequestBuilders.put("/contabil-usuario/v1/abc/5/10").headers(HEADERS))
-				.andExpect(status().isInternalServerError()).andReturn();
+	@Nested
+	@DisplayName("GET /contabil-usuario/v1/rank/{clerkId}/")
+	class FindUserRank {
 
-		String responseBody = response.getResponse().getContentAsString();
-		assertEquals("{\"data\":null,\"errors\":\"Erro interno\"}", responseBody);
+		@Test
+        @WithMockUser
+        @DisplayName("Deve retornar 200 e rank do usuário com sucesso")
+        void deveRetornar200_quandoRankEncontrado() throws Exception {
+            when(service.findUserRank("clerk_001")).thenReturn(3);
+
+            mockMvc.perform(get(BASE_URL + "/rank/clerk_001/"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data").value(3))
+                    .andExpect(jsonPath("$.errors").doesNotExist());
+        }
+
+		@Test
+        @WithMockUser
+        @DisplayName("Deve retornar 404 quando rank não encontrado")
+        void deveRetornar404_quandoNaoEncontrado() throws Exception {
+            when(service.findUserRank("clerk_999"))
+                    .thenThrow(new NotFoundException("Ranking do usuario não encontrado."));
+
+            mockMvc.perform(get(BASE_URL + "/rank/clerk_999/"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.errors").value("Ranking do usuario não encontrado."));
+        }
+
+		@Test
+        @WithMockUser
+        @DisplayName("Deve retornar 500 quando service lança InternalServerError")
+        void deveRetornar500_quandoErroInterno() throws Exception {
+            when(service.findUserRank(any())).thenThrow(new InternalServerError("erro interno"));
+
+            mockMvc.perform(get(BASE_URL + "/rank/clerk_001/"))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.errors").value("erro interno"));
+        }
 	}
 }

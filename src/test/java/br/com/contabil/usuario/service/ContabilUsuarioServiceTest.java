@@ -1,16 +1,19 @@
 package br.com.contabil.usuario.service;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -18,187 +21,311 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.domain.PageRequest;
 
 import br.com.contabil.usuario.adapter.ContabilUsuarioAdapter;
 import br.com.contabil.usuario.dto.ContabilUsuarioDto;
 import br.com.contabil.usuario.entity.ContabilUsuarioEntity;
 import br.com.contabil.usuario.exception.BadRequestException;
-import br.com.contabil.usuario.exception.NotFoundExceptionException;
-import br.com.contabil.usuario.exception.internalServerError;
+import br.com.contabil.usuario.exception.InternalServerError;
+import br.com.contabil.usuario.exception.NotFoundException;
 import br.com.contabil.usuario.repository.ContabilUsuarioRepository;
 
 @ExtendWith(MockitoExtension.class)
-public class ContabilUsuarioServiceTest {
+@DisplayName("ContabilUsuarioService - Testes Unitários")
+class ContabilUsuarioServiceTest {
 
 	@Mock
-	ContabilUsuarioRepository repository;
+	private ContabilUsuarioRepository repository;
 
 	@Mock
-	ContabilUsuarioAdapter adapter;
+	private ContabilUsuarioAdapter adapter;
 
 	@InjectMocks
-	ContabilUsuarioService service;
+	private ContabilUsuarioService service;
 
-	@Nested
-	@DisplayName("Testes do CreateOrUpdate")
-	class WhenCreateOrUpdate {
+	private ContabilUsuarioDto dto;
+	private ContabilUsuarioEntity entity;
 
-		@Test
-		@DisplayName("Quando chamar createOrUpdate, deve retornar o clerkId salvo.")
-		void whenCallCreateOrUpdate_thenReturnClerkId() throws Exception {
+	@BeforeEach
+	void setUp() {
+		dto = new ContabilUsuarioDto("clerk_001", "João", "joao@email.com", "http://img.png", 1, 5, 100);
 
-			ContabilUsuarioDto dto = new ContabilUsuarioDto();
-			dto.setClerkId("123");
-
-			ContabilUsuarioEntity entity = new ContabilUsuarioEntity();
-			entity.setClerkId("123");
-
-			when(adapter.adapterDtoToEntity(any(), eq("123"))).thenReturn(entity);
-			when(repository.save(any(ContabilUsuarioEntity.class))).thenReturn(entity);
-
-			String actual = service.createOrUpdate(dto);
-
-			assertEquals("123", actual);
-			verify(repository, times(1)).save(any(ContabilUsuarioEntity.class));
-		}
-
-		@Test
-		@DisplayName("Quando chamar createOrUpdate, deve lançar BadRequestException.")
-		void whenCallCreateOrUpdate_thenThrowBadRequest() throws Exception {
-
-			ContabilUsuarioDto dto = new ContabilUsuarioDto();
-			dto.setClerkId("123");
-
-			when(adapter.adapterDtoToEntity(any(), eq("123"))).thenThrow(new IllegalArgumentException("erro"));
-
-			assertThrows(BadRequestException.class, () -> service.createOrUpdate(dto));
-		}
-
-		@Test
-		@DisplayName("Quando chamar createOrUpdate, deve lançar internalServerError.")
-		void whenCallCreateOrUpdate_thenThrowInternalServerError() throws Exception {
-
-			ContabilUsuarioDto dto = new ContabilUsuarioDto();
-			dto.setClerkId("123");
-
-			when(adapter.adapterDtoToEntity(any(), eq("123"))).thenThrow(new RuntimeException("falha inesperada"));
-
-			assertThrows(internalServerError.class, () -> service.createOrUpdate(dto));
-		}
+		entity = new ContabilUsuarioEntity();
+		entity.setClerkId("clerk_001");
+		entity.setNome("João");
+		entity.setEmail("joao@email.com");
+		entity.setUserImgSrc("http://img.png");
+		entity.setActiveCourse(1);
+		entity.setHearts(5);
+		entity.setPoints(100);
 	}
 
+	// ─────────────────────────────────────────────────────────────────────────
+	// createOrUpdate
+	// ─────────────────────────────────────────────────────────────────────────
+
 	@Nested
-	@DisplayName("Testes do FindAll")
-	class WhenFindAll {
+	@DisplayName("createOrUpdate")
+	class CreateOrUpdate {
 
 		@Test
-		@DisplayName("Quando chamar findAll, deve retornar lista de DTOs")
-		void whenCallFindAll_thenReturnDtoList() throws Exception {
+        @DisplayName("Deve salvar e retornar o clerkId com sucesso")
+        void deveSalvarERetornarClerkId() throws Exception {
+            when(adapter.adapterDtoToEntity(eq(dto), eq(dto.getClerkId()))).thenReturn(entity);
+            when(repository.save(entity)).thenReturn(entity);
 
-			ContabilUsuarioEntity entity = new ContabilUsuarioEntity();
-			ContabilUsuarioDto dto = new ContabilUsuarioDto();
+            String result = service.createOrUpdate(dto);
 
-			when(repository.findAll()).thenReturn(List.of(entity));
-			when(adapter.adapterEntityToDto(entity)).thenReturn(dto);
-
-			List<ContabilUsuarioDto> actual = service.findAll();
-
-			assertEquals(1, actual.size());
-			verify(repository, times(1)).findAll();
-		}
-
-		@Test
-        @DisplayName("Quando findAll não encontrar registros, deve lançar NotFoundExceptionException")
-        void whenCallFindAll_thenThrowNotFound() throws Exception {
-
-            when(repository.findAll()).thenReturn(List.of());
-
-            assertThrows(NotFoundExceptionException.class, () -> service.findAll());
+            assertThat(result).isEqualTo("clerk_001");
+            verify(repository, times(1)).save(entity);
         }
 
 		@Test
-        @DisplayName("Quando findAll lançar erro inesperado, deve lançar internalServerError")
-        void whenCallFindAll_thenThrowInternal() throws Exception {
+        @DisplayName("Deve lançar BadRequestException quando IllegalArgumentException ocorrer")
+        void deveLancarBadRequest_quandoIllegalArgument() {
+            when(adapter.adapterDtoToEntity(eq(dto), eq(dto.getClerkId())))
+                    .thenThrow(new IllegalArgumentException("argumento inválido"));
 
-            when(repository.findAll()).thenThrow(RuntimeException.class);
+            assertThatThrownBy(() -> service.createOrUpdate(dto))
+                    .isInstanceOf(BadRequestException.class);
+        }
 
-            assertThrows(internalServerError.class, () -> service.findAll());
+		@Test
+        @DisplayName("Deve lançar BadRequestException quando OptimisticLockingFailureException ocorrer")
+        void deveLancarBadRequest_quandoOptimisticLocking() {
+            when(adapter.adapterDtoToEntity(eq(dto), eq(dto.getClerkId()))).thenReturn(entity);
+            when(repository.save(entity))
+                    .thenThrow(new OptimisticLockingFailureException("conflito de versão"));
+
+            assertThatThrownBy(() -> service.createOrUpdate(dto))
+                    .isInstanceOf(BadRequestException.class);
+        }
+
+		@Test
+        @DisplayName("Deve lançar InternalServerErrorException para qualquer outra exceção")
+        void deveLancarInternalServerError_quandoExcecaoGenerica() {
+            when(adapter.adapterDtoToEntity(eq(dto), eq(dto.getClerkId())))
+                    .thenThrow(new RuntimeException("erro inesperado"));
+
+            assertThatThrownBy(() -> service.createOrUpdate(dto))
+                    .isInstanceOf(InternalServerError.class);
         }
 	}
 
+	// ─────────────────────────────────────────────────────────────────────────
+	// findAll
+	// ─────────────────────────────────────────────────────────────────────────
+
 	@Nested
-	@DisplayName("Testes do FindByClerkId")
-	class WhenFindByClerkId {
+	@DisplayName("findAll")
+	class FindAll {
 
 		@Test
-		@DisplayName("Quando chamar findByClerkId, deve retornar dto correto.")
-		void whenCallFindByClerkId_thenReturnDto() throws Exception {
+        @DisplayName("Deve retornar lista de DTOs com sucesso")
+        void deveRetornarListaDeDtos() throws Exception {
+            when(repository.findAll()).thenReturn(List.of(entity));
+            when(adapter.adapterEntityToDto(entity)).thenReturn(dto);
 
-			String clerkId = "ABC";
+            List<ContabilUsuarioDto> result = service.findAll();
 
-			ContabilUsuarioEntity entity = new ContabilUsuarioEntity();
-			ContabilUsuarioDto dto = new ContabilUsuarioDto();
+            assertThat(result)
+                    .hasSize(1)
+                    .first()
+                    .extracting(ContabilUsuarioDto::getClerkId)
+                    .isEqualTo("clerk_001");
 
-			when(repository.findByClerkId(clerkId)).thenReturn(Optional.of(entity));
-			when(adapter.adapterEntityToDto(entity)).thenReturn(dto);
-
-			ContabilUsuarioDto actual = service.findByClerkId(clerkId);
-
-			assertEquals(dto, actual);
-		}
-
-		@Test
-        @DisplayName("Quando findByClerkId não encontrar usuário, deve lançar NotFound")
-        void whenCallFindByClerkId_thenThrowNotFound() throws Exception {
-
-            when(repository.findByClerkId("X")).thenReturn(Optional.empty());
-
-            assertThrows(NotFoundExceptionException.class, () -> service.findByClerkId("X"));
+            verify(adapter, times(1)).adapterEntityToDto(entity);
         }
 
 		@Test
-        @DisplayName("Quando findByClerkId lançar erro inesperado, deve lançar internalServerError")
-        void whenCallFindByClerkId_thenThrowInternal() throws Exception {
+        @DisplayName("Deve lançar NotFoundException quando não há registros")
+        void deveLancarNotFoundException_quandoListaVazia() {
+            when(repository.findAll()).thenReturn(Collections.emptyList());
 
-            when(repository.findByClerkId("X")).thenThrow(RuntimeException.class);
+            assertThatThrownBy(() -> service.findAll())
+                    .isInstanceOf(NotFoundException.class);
+        }
 
-            assertThrows(internalServerError.class, () -> service.findByClerkId("X"));
+		@Test
+        @DisplayName("Deve lançar InternalServerErrorException para qualquer outra exceção")
+        void deveLancarInternalServerError_quandoExcecaoGenerica() {
+            when(repository.findAll()).thenThrow(new RuntimeException("erro inesperado"));
+
+            assertThatThrownBy(() -> service.findAll())
+                    .isInstanceOf(InternalServerError.class);
         }
 	}
 
+	// ─────────────────────────────────────────────────────────────────────────
+	// findByClerkId
+	// ─────────────────────────────────────────────────────────────────────────
+
 	@Nested
-	@DisplayName("Testes do UpdatePointsAndHearts")
-	class WhenUpdatePointsAndHearts {
+	@DisplayName("findByClerkId")
+	class FindByClerkId {
 
 		@Test
-        @DisplayName("Quando updatePointsAndHearts atualizar com sucesso, deve retornar quantidade atualizada.")
-        void whenCallUpdatePoints_thenReturnUpdated() throws Exception {
+        @DisplayName("Deve retornar DTO quando usuário encontrado")
+        void deveRetornarDto_quandoUsuarioEncontrado() throws Exception {
+            when(repository.findByClerkId("clerk_001")).thenReturn(Optional.of(entity));
+            when(adapter.adapterEntityToDto(entity)).thenReturn(dto);
 
-            when(repository.updatePointsAndHearts("A", 3, 4)).thenReturn(1);
+            ContabilUsuarioDto result = service.findByClerkId("clerk_001");
 
-            int actual = service.updatePointsAndHearts("A", 3, 4);
-
-            assertEquals(1, actual);
+            assertThat(result)
+                    .extracting(ContabilUsuarioDto::getClerkId, ContabilUsuarioDto::getEmail)
+                    .containsExactly("clerk_001", "joao@email.com");
         }
 
 		@Test
-        @DisplayName("Quando updatePointsAndHearts retornar  0, deve lançar NotFound")
-        void whenCallUpdatePoints_thenThrowNotFound() throws Exception {
+        @DisplayName("Deve lançar NotFoundException quando usuário não encontrado")
+        void deveLancarNotFoundException_quandoNaoEncontrado() {
+            when(repository.findByClerkId("clerk_999")).thenReturn(Optional.empty());
 
-            when(repository.updatePointsAndHearts("A", 3, 4)).thenReturn(0);
-
-            assertThrows(NotFoundExceptionException.class,
-                    () -> service.updatePointsAndHearts("A", 3, 4));
+            assertThatThrownBy(() -> service.findByClerkId("clerk_999"))
+                    .isInstanceOf(NotFoundException.class);
         }
 
 		@Test
-        @DisplayName("Quando updatePointsAndHearts lançar erro inesperado, deve lançar internalServerError")
-        void whenCallUpdatePoints_thenThrowInternal() throws Exception {
+        @DisplayName("Deve lançar InternalServerErrorException para qualquer outra exceção")
+        void deveLancarInternalServerError_quandoExcecaoGenerica() {
+            when(repository.findByClerkId(eq("clerk_001")))
+                    .thenThrow(new RuntimeException("erro inesperado"));
 
-            when(repository.updatePointsAndHearts("A", 3, 4)).thenThrow(RuntimeException.class);
+            assertThatThrownBy(() -> service.findByClerkId("clerk_001"))
+                    .isInstanceOf(InternalServerError.class);
+        }
+	}
 
-            assertThrows(internalServerError.class,
-                    () -> service.updatePointsAndHearts("A", 3, 4));
+	// ─────────────────────────────────────────────────────────────────────────
+	// updatePointsAndHearts
+	// ─────────────────────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("updatePointsAndHearts")
+	class UpdatePointsAndHearts {
+
+		@Test
+        @DisplayName("Deve retornar 1 quando atualização bem-sucedida")
+        void deveRetornar1_quandoAtualizacaoBemSucedida() throws Exception {
+            when(repository.updatePointsAndHearts("clerk_001", 3, 200)).thenReturn(1);
+
+            int result = service.updatePointsAndHearts("clerk_001", 3, 200);
+
+            assertThat(result).isEqualTo(1);
+            verify(repository, times(1)).updatePointsAndHearts("clerk_001", 3, 200);
+        }
+
+		@Test
+        @DisplayName("Deve lançar NotFoundException quando nenhum registro atualizado")
+        void deveLancarNotFoundException_quandoNenhumRegistroAtualizado() {
+            when(repository.updatePointsAndHearts("clerk_999", 3, 200)).thenReturn(0);
+
+            assertThatThrownBy(() -> service.updatePointsAndHearts("clerk_999", 3, 200))
+                    .isInstanceOf(NotFoundException.class);
+        }
+
+		@Test
+        @DisplayName("Deve lançar InternalServerErrorException para qualquer outra exceção")
+        void deveLancarInternalServerError_quandoExcecaoGenerica() {
+            when(repository.updatePointsAndHearts(any(), anyInt(), anyInt()))
+                    .thenThrow(new RuntimeException("erro inesperado"));
+
+            assertThatThrownBy(() -> service.updatePointsAndHearts("clerk_001", 3, 200))
+                    .isInstanceOf(InternalServerError.class);
+        }
+	}
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// findTop200ByOrderByPointsDesc
+	// ─────────────────────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("findTop200ByOrderByPointsDesc")
+	class FindTop200 {
+
+		@Test
+        @DisplayName("Deve retornar lista paginada com sucesso")
+        void deveRetornarListaPaginada() throws Exception {
+            when(repository.findTop200ByOrderByPointsDesc(any())).thenReturn(List.of(entity));
+            when(adapter.adapterEntityToDto(entity)).thenReturn(dto);
+
+            List<ContabilUsuarioDto> result = service.findTop200ByOrderByPointsDesc(
+                    PageRequest.of(0, 200));
+
+            assertThat(result)
+                    .hasSize(1)
+                    .first()
+                    .extracting(ContabilUsuarioDto::getClerkId)
+                    .isEqualTo("clerk_001");
+
+            verify(adapter, times(1)).adapterEntityToDto(entity);
+        }
+
+		@Test
+        @DisplayName("Deve lançar NotFoundException quando lista vazia")
+        void deveLancarNotFoundException_quandoListaVazia() {
+            when(repository.findTop200ByOrderByPointsDesc(any()))
+                    .thenReturn(Collections.emptyList());
+
+            assertThatThrownBy(() -> service.findTop200ByOrderByPointsDesc(PageRequest.of(0, 200)))
+                    .isInstanceOf(NotFoundException.class);
+        }
+
+		@Test
+        @DisplayName("Deve lançar InternalServerErrorException para qualquer outra exceção")
+        void deveLancarInternalServerError_quandoExcecaoGenerica() {
+            when(repository.findTop200ByOrderByPointsDesc(any()))
+                    .thenThrow(new RuntimeException("erro inesperado"));
+
+            assertThatThrownBy(() -> service.findTop200ByOrderByPointsDesc(PageRequest.of(0, 200)))
+                    .isInstanceOf(InternalServerError.class);
+        }
+	}
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// findUserRank
+	// ─────────────────────────────────────────────────────────────────────────
+
+	@Nested
+	@DisplayName("findUserRank")
+	class FindUserRank {
+
+		@Test
+        @DisplayName("Deve retornar rank do usuário com sucesso")
+        void deveRetornarRank() throws Exception {
+            when(repository.findUserRank("clerk_001")).thenReturn(Optional.of(3));
+
+            assertThat(service.findUserRank("clerk_001")).isEqualTo(3);
+        }
+
+		@Test
+        @DisplayName("Deve retornar rank 1 quando usuário é o primeiro colocado")
+        void deveRetornarRank1_quandoPrimeiro() throws Exception {
+            when(repository.findUserRank("clerk_top")).thenReturn(Optional.of(1));
+
+            assertThat(service.findUserRank("clerk_top")).isEqualTo(1);
+        }
+
+		@Test
+        @DisplayName("Deve lançar NotFoundException quando rank não encontrado")
+        void deveLancarNotFoundException_quandoNaoEncontrado() {
+            when(repository.findUserRank("clerk_999")).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.findUserRank("clerk_999"))
+                    .isInstanceOf(NotFoundException.class);
+        }
+
+		@Test
+        @DisplayName("Deve lançar InternalServerErrorException para qualquer outra exceção")
+        void deveLancarInternalServerError_quandoExcecaoGenerica() {
+            when(repository.findUserRank(eq("clerk_001")))
+                    .thenThrow(new RuntimeException("erro inesperado"));
+
+            assertThatThrownBy(() -> service.findUserRank("clerk_001"))
+                    .isInstanceOf(InternalServerError.class);
         }
 	}
 }

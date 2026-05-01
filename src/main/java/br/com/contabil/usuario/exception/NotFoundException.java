@@ -1,10 +1,10 @@
 package br.com.contabil.usuario.exception;
 
-public class NotFoundExceptionException extends Exception {
+public class NotFoundException extends Exception {
 
 	private static final long serialVersionUID = 1L;
 
-	public NotFoundExceptionException(String message) {
+	public NotFoundException(String message) {
 		super(message);
 	}
 }
