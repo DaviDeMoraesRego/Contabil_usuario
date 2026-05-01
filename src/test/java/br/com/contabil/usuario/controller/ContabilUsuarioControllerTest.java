@@ -21,6 +21,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -33,6 +34,9 @@ import br.com.contabil.usuario.exception.NotFoundException;
 import br.com.contabil.usuario.service.ContabilUsuarioService;
 
 @WebMvcTest(controllers = { ContabilUsuarioController.class, RestExceptionHandler.class })
+@TestPropertySource(properties = { "app.cors.allowed-origins=http://localhost:3000",
+		"app.security.expected-client-id=http://localhost:3000",
+		"spring.security.oauth2.resourceserver.jwt.issuer-uri=https://clerk.contabiledu.com.br" })
 @DisplayName("ContabilUsuarioController - Testes de Integração")
 class ContabilUsuarioControllerTest {
 
