@@ -36,7 +36,7 @@ import br.com.contabil.usuario.service.ContabilUsuarioService;
 @WebMvcTest(controllers = { ContabilUsuarioController.class, RestExceptionHandler.class })
 @TestPropertySource(properties = { "app.cors.allowed-origins=http://localhost:3000",
 		"app.security.expected-client-id=http://localhost:3000",
-		"spring.security.oauth2.resourceserver.jwt.issuer-uri=https://clerk.contabiledu.com.br" })
+		"spring.security.oauth2.resourceserver.jwt.issuer-uri=https://awaited-hog-86.clerk.accounts.dev" })
 @DisplayName("ContabilUsuarioController - Testes de Integração")
 class ContabilUsuarioControllerTest {
 

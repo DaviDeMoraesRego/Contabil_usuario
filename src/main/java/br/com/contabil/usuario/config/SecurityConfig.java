@@ -36,7 +36,7 @@ public class SecurityConfig {
 	@Value("${app.swagger.enabled:false}")
 	private boolean swaggerEnabled;
 
-	@Value("${app.cors.allowed-origins}")
+	@Value("${app.security.expected-azp}")
 	private String expectedClientId;
 
 	private static final String[] SWAGGER_WHITELIST = { "/swagger-ui/**", "/swagger-resources/**", "/v3/api-docs/**",
@@ -56,8 +56,8 @@ public class SecurityConfig {
 								.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
 						.addHeaderWriter(new StaticHeadersWriter("Permissions-Policy",
 								"camera=(), microphone=(), geolocation=()"))
-						.contentSecurityPolicy(
-								csp -> csp.policyDirectives("default-src 'none'; frame-ancestors 'none'")))
+						.contentSecurityPolicy(csp -> csp.policyDirectives(
+								"default-src 'self'; connect-src 'self' https://contabiledu.com.br;")))
 				.exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, e) -> {
 					log.warn("Acesso nao autenticado: {} {} | IP: {}", request.getMethod(), request.getRequestURI(),
 							request.getRemoteAddr());
