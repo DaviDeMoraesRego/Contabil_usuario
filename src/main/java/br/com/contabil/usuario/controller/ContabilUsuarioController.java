@@ -40,7 +40,7 @@ public class ContabilUsuarioController {
 		return ResponseEntity.ok(new ResponseDto<List<ContabilUsuarioDto>>(service.findAll(), null));
 	}
 
-	@GetMapping("/{clerkId}/")
+	@GetMapping("/{clerkId}")
 	public ResponseEntity<ResponseDto<ContabilUsuarioDto>> findByClerkId(@PathVariable("clerkId") String clerkId)
 			throws Exception {
 		return ResponseEntity.ok(new ResponseDto<ContabilUsuarioDto>(service.findByClerkId(clerkId), null));
@@ -53,13 +53,13 @@ public class ContabilUsuarioController {
 				.ok(new ResponseDto<Integer>(service.updatePointsAndHearts(clerkId, hearts, points), null));
 	}
 
-	@GetMapping("/ranking/")
+	@GetMapping("/ranking")
 	public ResponseEntity<ResponseDto<List<ContabilUsuarioDto>>> findTop200ByOrderByPointsDesc() throws Exception {
 		return ResponseEntity.ok(new ResponseDto<List<ContabilUsuarioDto>>(
 				service.findTop200ByOrderByPointsDesc(PageRequest.of(0, 200, Sort.by("points").descending())), null));
 	}
 
-	@GetMapping("/rank/{clerkId}/")
+	@GetMapping("/rank/{clerkId}")
 	public ResponseEntity<ResponseDto<Integer>> findUserRank(@PathVariable("clerkId") String clerkId) throws Exception {
 		return ResponseEntity.ok(new ResponseDto<Integer>(service.findUserRank(clerkId), null));
 	}
