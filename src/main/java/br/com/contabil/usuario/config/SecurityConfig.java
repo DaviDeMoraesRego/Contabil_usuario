@@ -1,7 +1,6 @@
 package br.com.contabil.usuario.config;
 
 import java.util.List;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,12 +15,9 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
-import org.springframework.security.web.header.writers.StaticHeadersWriter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-
 import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
@@ -41,7 +37,6 @@ public class SecurityConfig {
 
 	private static final String[] SWAGGER_WHITELIST = { "/swagger-ui/**", "/swagger-resources/**", "/v3/api-docs/**",
 			"/webjars/**" };
-
 	private static final String[] ACTUATOR_WHITELIST = { "/actuator/health/liveness", "/actuator/health/readiness" };
 
 	@Bean
@@ -49,15 +44,6 @@ public class SecurityConfig {
 		http.csrf(csrf -> csrf.disable())
 				.sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.cors(Customizer.withDefaults())
-				.headers(headers -> headers
-						.httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000))
-						.frameOptions(frame -> frame.deny()).contentTypeOptions(Customizer.withDefaults())
-						.referrerPolicy(referrer -> referrer
-								.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
-						.addHeaderWriter(new StaticHeadersWriter("Permissions-Policy",
-								"camera=(), microphone=(), geolocation=()"))
-						.contentSecurityPolicy(csp -> csp.policyDirectives(
-								"default-src 'self'; connect-src 'self' https://contabiledu.com.br;")))
 				.exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, e) -> {
 					log.warn("Acesso nao autenticado: {} {} | IP: {}", request.getMethod(), request.getRequestURI(),
 							request.getRemoteAddr());
