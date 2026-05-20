@@ -1,23 +1,24 @@
 package br.com.contabil.usuario.config;
 
 import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
 import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
@@ -32,18 +33,14 @@ public class SecurityConfig {
 	@Value("${app.swagger.enabled:false}")
 	private boolean swaggerEnabled;
 
-	@Value("${app.security.expected-azp}")
-	private String expectedClientId;
-
 	private static final String[] SWAGGER_WHITELIST = { "/swagger-ui/**", "/swagger-resources/**", "/v3/api-docs/**",
 			"/webjars/**" };
 	private static final String[] ACTUATOR_WHITELIST = { "/actuator/health/liveness", "/actuator/health/readiness" };
 
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-		http.csrf(csrf -> csrf.disable())
+		http.cors(cors -> cors.configurationSource(corsConfigurationSource())).csrf(csrf -> csrf.disable())
 				.sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-				.cors(Customizer.withDefaults())
 				.exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, e) -> {
 					log.warn("Acesso nao autenticado: {} {} | IP: {}", request.getMethod(), request.getRequestURI(),
 							request.getRemoteAddr());
@@ -53,7 +50,6 @@ public class SecurityConfig {
 							request.getRemoteAddr());
 					response.sendError(HttpServletResponse.SC_FORBIDDEN);
 				})).authorizeHttpRequests(auth -> {
-					auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
 					auth.requestMatchers(ACTUATOR_WHITELIST).permitAll();
 					if (swaggerEnabled) {
 						auth.requestMatchers(SWAGGER_WHITELIST).permitAll();
@@ -66,16 +62,14 @@ public class SecurityConfig {
 	}
 
 	@Bean
+	public WebSecurityCustomizer webSecurityCustomizer() {
+		return (web) -> web.ignoring().requestMatchers(HttpMethod.OPTIONS, "/**");
+	}
+
+	@Bean
 	JwtAuthenticationConverter jwtAuthenticationConverter() {
 		JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-		converter.setJwtGrantedAuthoritiesConverter((Jwt jwt) -> {
-			String azp = jwt.getClaimAsString("azp");
-			if (azp == null || !azp.equals(expectedClientId)) {
-				log.warn("Token rejeitado: azp invalido '{}'", azp);
-				throw new JwtException("Token nao autorizado para esta aplicacao");
-			}
-			return List.of();
-		});
+		converter.setJwtGrantedAuthoritiesConverter((Jwt jwt) -> List.of());
 		return converter;
 	}
 
