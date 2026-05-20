@@ -209,7 +209,7 @@ class ContabilUsuarioControllerTest {
         void deveRetornar200_quandoEncontrado() throws Exception {
             when(service.findByClerkId("clerk_001")).thenReturn(dto);
 
-            mockMvc.perform(get(BASE_URL + "/clerk_001/"))
+            mockMvc.perform(get(BASE_URL + "/clerk_001"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.clerkId").value("clerk_001"))
                     .andExpect(jsonPath("$.data.nome").value("João"))
@@ -223,7 +223,7 @@ class ContabilUsuarioControllerTest {
             when(service.findByClerkId("clerk_999"))
                     .thenThrow(new NotFoundException("Nenhum registro encontrado."));
 
-            mockMvc.perform(get(BASE_URL + "/clerk_999/"))
+            mockMvc.perform(get(BASE_URL + "/clerk_999"))
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.errors").value("Nenhum registro encontrado."));
         }
@@ -234,7 +234,7 @@ class ContabilUsuarioControllerTest {
         void deveRetornar500_quandoErroInterno() throws Exception {
             when(service.findByClerkId(any())).thenThrow(new InternalServerError("erro interno"));
 
-            mockMvc.perform(get(BASE_URL + "/clerk_001/"))
+            mockMvc.perform(get(BASE_URL + "/clerk_001"))
                     .andExpect(status().isInternalServerError())
                     .andExpect(jsonPath("$.errors").value("erro interno"));
         }
@@ -299,7 +299,7 @@ class ContabilUsuarioControllerTest {
         void deveRetornar200_quandoHouverRanking() throws Exception {
             when(service.findTop200ByOrderByPointsDesc(any(Pageable.class))).thenReturn(List.of(dto));
 
-            mockMvc.perform(get(BASE_URL + "/ranking/")
+            mockMvc.perform(get(BASE_URL + "/ranking")
                             .param("page", "0")
                             .param("size", "10"))
                     .andExpect(status().isOk())
@@ -315,7 +315,7 @@ class ContabilUsuarioControllerTest {
             when(service.findTop200ByOrderByPointsDesc(any(Pageable.class)))
                     .thenThrow(new NotFoundException("Nenhum registro encontrado."));
 
-            mockMvc.perform(get(BASE_URL + "/ranking/")
+            mockMvc.perform(get(BASE_URL + "/ranking")
                             .param("page", "0")
                             .param("size", "10"))
                     .andExpect(status().isNotFound())
@@ -329,7 +329,7 @@ class ContabilUsuarioControllerTest {
             when(service.findTop200ByOrderByPointsDesc(any(Pageable.class)))
                     .thenThrow(new InternalServerError("erro interno"));
 
-            mockMvc.perform(get(BASE_URL + "/ranking/")
+            mockMvc.perform(get(BASE_URL + "/ranking")
                             .param("page", "0")
                             .param("size", "10"))
                     .andExpect(status().isInternalServerError())
@@ -351,7 +351,7 @@ class ContabilUsuarioControllerTest {
         void deveRetornar200_quandoRankEncontrado() throws Exception {
             when(service.findUserRank("clerk_001")).thenReturn(3);
 
-            mockMvc.perform(get(BASE_URL + "/rank/clerk_001/"))
+            mockMvc.perform(get(BASE_URL + "/rank/clerk_001"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data").value(3))
                     .andExpect(jsonPath("$.errors").doesNotExist());
@@ -364,7 +364,7 @@ class ContabilUsuarioControllerTest {
             when(service.findUserRank("clerk_999"))
                     .thenThrow(new NotFoundException("Ranking do usuario não encontrado."));
 
-            mockMvc.perform(get(BASE_URL + "/rank/clerk_999/"))
+            mockMvc.perform(get(BASE_URL + "/rank/clerk_999"))
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.errors").value("Ranking do usuario não encontrado."));
         }
@@ -375,7 +375,7 @@ class ContabilUsuarioControllerTest {
         void deveRetornar500_quandoErroInterno() throws Exception {
             when(service.findUserRank(any())).thenThrow(new InternalServerError("erro interno"));
 
-            mockMvc.perform(get(BASE_URL + "/rank/clerk_001/"))
+            mockMvc.perform(get(BASE_URL + "/rank/clerk_001"))
                     .andExpect(status().isInternalServerError())
                     .andExpect(jsonPath("$.errors").value("erro interno"));
         }
