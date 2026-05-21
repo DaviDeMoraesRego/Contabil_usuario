@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -20,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -53,9 +55,14 @@ class ContabilUsuarioControllerTest {
 
 	private static final String BASE_URL = "/contabil-usuario/v1";
 
+	private org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor mockJwt;
+
 	@BeforeEach
 	void setUp() {
 		dto = new ContabilUsuarioDto("clerk_001", "João", "joao@email.com", "http://img.png", 1, 5, 100);
+
+		this.mockJwt = jwt().jwt(j -> j.subject("clerk_001").claim("role", "user"))
+				.authorities(new SimpleGrantedAuthority("ROLE_USER"));
 	}
 
 	// ─────────────────────────────────────────────────────────────────────────
@@ -209,7 +216,7 @@ class ContabilUsuarioControllerTest {
         void deveRetornar200_quandoEncontrado() throws Exception {
             when(service.findByClerkId("clerk_001")).thenReturn(dto);
 
-            mockMvc.perform(get(BASE_URL + "/clerk_001"))
+            mockMvc.perform(get(BASE_URL + "/user").with(mockJwt))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.clerkId").value("clerk_001"))
                     .andExpect(jsonPath("$.data.nome").value("João"))
@@ -220,10 +227,10 @@ class ContabilUsuarioControllerTest {
         @WithMockUser
         @DisplayName("Deve retornar 404 quando usuário não encontrado")
         void deveRetornar404_quandoNaoEncontrado() throws Exception {
-            when(service.findByClerkId("clerk_999"))
+            when(service.findByClerkId("clerk_001"))
                     .thenThrow(new NotFoundException("Nenhum registro encontrado."));
 
-            mockMvc.perform(get(BASE_URL + "/clerk_999"))
+            mockMvc.perform(get(BASE_URL + "/user").with(mockJwt))
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.errors").value("Nenhum registro encontrado."));
         }
@@ -234,7 +241,7 @@ class ContabilUsuarioControllerTest {
         void deveRetornar500_quandoErroInterno() throws Exception {
             when(service.findByClerkId(any())).thenThrow(new InternalServerError("erro interno"));
 
-            mockMvc.perform(get(BASE_URL + "/clerk_001"))
+            mockMvc.perform(get(BASE_URL + "/user").with(mockJwt))
                     .andExpect(status().isInternalServerError())
                     .andExpect(jsonPath("$.errors").value("erro interno"));
         }
